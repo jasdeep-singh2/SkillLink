@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SkillLink.Api/SkillLink.Api.csproj" />
+    <Project Path="src/SkillLink.AppHost/SkillLink.AppHost.csproj" />
+    <Project Path="src/SkillLink.ServiceDefaults/SkillLink.ServiceDefaults.csproj" />
+  </Folder>
+</Solution>
