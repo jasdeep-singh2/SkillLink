@@ -1,5 +1,17 @@
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults();          // ← add after CreateBuilder
-// ...existing code...
+
+builder.AddServiceDefaults();
+builder.Services.AddOpenApi();
+
 var app = builder.Build();
-app.MapDefaultEndpoints();             // ← add after Build (adds /health and /alive)
+
+app.MapDefaultEndpoints();
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.MapGet("/api/hello", () => new { message = "Hello from .NET" });
+
+app.Run();
