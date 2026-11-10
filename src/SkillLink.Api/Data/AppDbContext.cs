@@ -7,7 +7,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<User> Users => Set<User>();
     public DbSet<Skill> Skills => Set<Skill>();
     public DbSet<UserSkill> UserSkills => Set<UserSkill>();
-
+    public DbSet<Connection> Connections => Set<Connection>();
     protected override void OnModelCreating(ModelBuilder b)
     {
         b.HasPostgresExtension("citext");

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SkillLink.Api.Data;
 using SkillLink.Api.Features.Users;
+using SkillLink.Api.Features.Connections;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -21,5 +22,5 @@ if (app.Environment.IsDevelopment())
 
 app.MapGet("/api/hello", () => new { message = "Hello from .NET" });
 app.MapUserEndpoints();
-
+app.MapConnectionEndpoints(); 
 app.Run();

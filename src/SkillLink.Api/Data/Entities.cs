@@ -24,3 +24,14 @@ public sealed class UserSkill
     public User User { get; init; } = null!;
     public Skill Skill { get; init; } = null!;
 }
+
+public enum ConnectionStatus { Pending, Accepted, Rejected }
+
+public sealed class Connection
+{
+    public Guid RequesterId { get; init; }
+    public Guid AddresseeId { get; init; }
+    public ConnectionStatus Status { get; set; } = ConnectionStatus.Pending;
+    public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? RespondedAt { get; set; }
+}

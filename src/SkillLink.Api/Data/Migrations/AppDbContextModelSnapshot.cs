@@ -23,6 +23,42 @@ namespace SkillLink.Api.Data.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "citext");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("SkillLink.Api.Data.Connection", b =>
+                {
+                    b.Property<Guid>("RequesterId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requester_id");
+
+                    b.Property<Guid>("AddresseeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("addressee_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("RespondedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("responded_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.HasKey("RequesterId", "AddresseeId")
+                        .HasName("pk_connections");
+
+                    b.HasIndex("AddresseeId", "Status")
+                        .HasDatabaseName("ix_connections_addressee_id_status");
+
+                    b.ToTable("connections", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_connections_not_self", "requester_id <> addressee_id");
+                        });
+                });
+
             modelBuilder.Entity("SkillLink.Api.Data.Skill", b =>
                 {
                     b.Property<int>("Id")
@@ -109,6 +145,23 @@ namespace SkillLink.Api.Data.Migrations
                         {
                             t.HasCheckConstraint("ck_user_skills_level", "level BETWEEN 1 AND 5");
                         });
+                });
+
+            modelBuilder.Entity("SkillLink.Api.Data.Connection", b =>
+                {
+                    b.HasOne("SkillLink.Api.Data.User", null)
+                        .WithMany()
+                        .HasForeignKey("AddresseeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_connections_users_addressee_id");
+
+                    b.HasOne("SkillLink.Api.Data.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequesterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_connections_users_requester_id");
                 });
 
             modelBuilder.Entity("SkillLink.Api.Data.UserSkill", b =>
