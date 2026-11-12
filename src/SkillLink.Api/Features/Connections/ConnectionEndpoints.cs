@@ -1,5 +1,6 @@
 ﻿using Dapper;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Hybrid;
 using Npgsql;
 using SkillLink.Api.Data;
 
@@ -44,16 +45,22 @@ public static class ConnectionEndpoints
         return Results.Created($"/api/connections/{req.RequesterId}/{req.AddresseeId}", null);
     }
 
-    private static async Task<IResult> AcceptRequest(Guid requesterId, Guid addresseeId, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> AcceptRequest(Guid requesterId, Guid addresseeId, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
-        // Atomic conditional update: only one concurrent accept/reject can win.
         var updated = await db.Connections
             .Where(c => c.RequesterId == requesterId && c.AddresseeId == addresseeId && c.Status == ConnectionStatus.Pending)
             .ExecuteUpdateAsync(s => s
                 .SetProperty(c => c.Status, ConnectionStatus.Accepted)
                 .SetProperty(c => c.RespondedAt, DateTimeOffset.UtcNow), ct);
 
-        return updated == 1 ? Results.NoContent() : Results.NotFound(new { error = "No pending request found." });
+        if (updated == 0)
+            return Results.NotFound(new { error = "No pending request found." });
+
+        // The two people involved see the change immediately.
+        // Their friends' suggestions also changed; the 1-minute TTL covers those.
+        await cache.RemoveByTagAsync([$"user:{requesterId}", $"user:{addresseeId}"], ct);
+
+        return Results.NoContent();
     }
 
     private static async Task<IResult> GetConnections(Guid id, AppDbContext db, CancellationToken ct)
@@ -71,13 +78,24 @@ public static class ConnectionEndpoints
         return Results.Ok(friends);
     }
 
-    private static async Task<IResult> GetSuggestions(Guid id, AppDbContext db, CancellationToken ct)
+    private static readonly HybridCacheEntryOptions SuggestionsCacheOptions = new()
     {
-        var suggestions = await db.Database.GetDbConnection().QueryAsync<SuggestionResponse>(
-            new CommandDefinition(ConnectionQueries.SuggestionsSql, new { me = id }, cancellationToken: ct));
+        Expiration = TimeSpan.FromMinutes(1),               // L2 (Redis): our "within 1 minute" requirement
+        LocalCacheExpiration = TimeSpan.FromSeconds(30),    // L1 (memory): shorter, may be stale on other instances
+    };
+
+    private static async Task<IResult> GetSuggestions(Guid id, AppDbContext db, HybridCache cache, CancellationToken ct)
+    {
+        var suggestions = await cache.GetOrCreateAsync(
+            $"suggestions:{id}",                            // cache key: one entry per user
+            async token => (await db.Database.GetDbConnection().QueryAsync<SuggestionResponse>(
+                new CommandDefinition(ConnectionQueries.SuggestionsSql, new { me = id }, cancellationToken: token))).ToList(),
+            SuggestionsCacheOptions,
+            tags: [$"user:{id}"],                           // lets us invalidate by user
+            cancellationToken: ct);
 
         return Results.Ok(suggestions);
     }
 
-    
+
 }

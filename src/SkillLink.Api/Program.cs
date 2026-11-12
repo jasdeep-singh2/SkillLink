@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 builder.AddNpgsqlDbContext<AppDbContext>("skilllink",
     configureDbContextOptions: o => o.UseSnakeCaseNamingConvention());
+builder.AddRedisDistributedCache("cache");   // L2: Redis (name matches the AppHost)
+builder.Services.AddHybridCache();           // L1 + L2, using Redis automatically
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
