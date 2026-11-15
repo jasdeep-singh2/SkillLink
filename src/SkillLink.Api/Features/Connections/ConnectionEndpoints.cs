@@ -15,7 +15,7 @@ public static class ConnectionEndpoints
         group.MapPost("/connections", SendRequest);
         group.MapPost("/connections/{requesterId:guid}/{addresseeId:guid}/accept", AcceptRequest);
         group.MapGet("/users/{id:guid}/connections", GetConnections);
-        group.MapGet("/users/{id:guid}/suggestions", GetSuggestions);
+        group.MapGet("/users/{id:guid}/suggestions", GetSuggestions).RequireRateLimiting("per-user");
 
         return app;
     }

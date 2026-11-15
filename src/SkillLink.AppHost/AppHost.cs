@@ -12,7 +12,9 @@ var cache = builder.AddRedis("cache")
 var api = builder.AddProject<Projects.SkillLink_Api>("api")
                  .WithReference(db)
                  .WithReference(cache)
-                 .WaitFor(db);
+                 .WaitFor(db)
+                 .WaitFor(cache)
+                 .WithReplicas(1);
 
 builder.AddJavaScriptApp("web", "../../web")
        .WithReference(api)
