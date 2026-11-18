@@ -1,6 +1,35 @@
-@SkillLink.Api_HostAddress = http://localhost:5267
+@api = http://localhost:5267
 
-GET {{SkillLink.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### 1. Register
+POST {{api}}/api/auth/register
+Content-Type: application/json
+
+{ "email": "alice@example.com", "displayName": "Alice", "headline": "Optimizely dev", "password": "Passw0rd!123" }
+
+### 2. Login: copies the token into {{token}} for the requests below
+# @name login
+POST {{api}}/api/auth/login
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "Passw0rd!123" }
 
 ###
+@token = {{login.response.body.$.accessToken}}
+
+### 3. Who am I?
+GET {{api}}/api/users/me
+Authorization: Bearer {{token}}
+
+### 4. Without a token: expect 401
+GET {{api}}/api/users/me
+
+### 5. My suggestions (rate limited per logged-in user)
+GET {{api}}/api/me/suggestions
+Authorization: Bearer {{token}}
+
+### 6. Send a connection request (replace with another user's id)
+POST {{api}}/api/connections
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "addresseeId": "00000000-0000-0000-0000-000000000000" }

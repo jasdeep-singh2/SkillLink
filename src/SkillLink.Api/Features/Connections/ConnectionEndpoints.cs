@@ -1,8 +1,10 @@
-﻿using Dapper;
+﻿using System.Security.Claims;
+using Dapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Npgsql;
 using SkillLink.Api.Data;
+using SkillLink.Api.Features.Auth;
 
 namespace SkillLink.Api.Features.Connections;
 
@@ -10,24 +12,24 @@ public static class ConnectionEndpoints
 {
     public static IEndpointRouteBuilder MapConnectionEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api").WithTags("Connections");
+        // Every route here acts as the logged-in user, so there are no user IDs in the URLs to tamper with.
+        var group = app.MapGroup("/api").WithTags("Connections").RequireAuthorization();
 
         group.MapPost("/connections", SendRequest);
-        group.MapPost("/connections/{requesterId:guid}/{addresseeId:guid}/accept", AcceptRequest);
-        group.MapGet("/users/{id:guid}/connections", GetConnections);
-        group.MapGet("/users/{id:guid}/suggestions", GetSuggestions).RequireRateLimiting("per-user");
+        group.MapPost("/connections/{requesterId:guid}/accept", AcceptRequest);
+        group.MapGet("/me/connections", GetConnections);
+        group.MapGet("/me/suggestions", GetSuggestions).RequireRateLimiting("per-user");
 
         return app;
     }
 
-    // TEMPORARY: the requester comes from the request body until we add auth.
-    // Right now anyone could send a request "as" anyone else.
-    private static async Task<IResult> SendRequest(SendConnectionRequest req, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> SendRequest(SendConnectionRequest req, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
     {
-        if (req.RequesterId == req.AddresseeId)
+        var me = principal.GetUserId();
+        if (me == req.AddresseeId)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["addresseeId"] = ["You can't connect with yourself."] });
 
-        db.Connections.Add(new Connection { RequesterId = req.RequesterId, AddresseeId = req.AddresseeId });
+        db.Connections.Add(new Connection { RequesterId = me, AddresseeId = req.AddresseeId });
 
         try
         {
@@ -42,11 +44,14 @@ public static class ConnectionEndpoints
             return Results.NotFound(new { error = "One of these users doesn't exist." });
         }
 
-        return Results.Created($"/api/connections/{req.RequesterId}/{req.AddresseeId}", null);
+        return Results.Created($"/api/me/connections", null);
     }
 
-    private static async Task<IResult> AcceptRequest(Guid requesterId, Guid addresseeId, AppDbContext db, HybridCache cache, CancellationToken ct)
+    // Only the person who received the request can accept it.
+    private static async Task<IResult> AcceptRequest(Guid requesterId, ClaimsPrincipal principal, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
+        var addresseeId = principal.GetUserId();
+
         var updated = await db.Connections
             .Where(c => c.RequesterId == requesterId && c.AddresseeId == addresseeId && c.Status == ConnectionStatus.Pending)
             .ExecuteUpdateAsync(s => s
@@ -63,8 +68,9 @@ public static class ConnectionEndpoints
         return Results.NoContent();
     }
 
-    private static async Task<IResult> GetConnections(Guid id, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> GetConnections(ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
     {
+        var id = principal.GetUserId();
         var friendIds = db.Connections
             .Where(c => c.RequesterId == id && c.Status == ConnectionStatus.Accepted).Select(c => c.AddresseeId)
             .Concat(db.Connections
@@ -84,8 +90,9 @@ public static class ConnectionEndpoints
         LocalCacheExpiration = TimeSpan.FromSeconds(30),    // L1 (memory): shorter, may be stale on other instances
     };
 
-    private static async Task<IResult> GetSuggestions(Guid id, AppDbContext db, HybridCache cache, CancellationToken ct)
+    private static async Task<IResult> GetSuggestions(ClaimsPrincipal principal, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
+        var id = principal.GetUserId();
         var suggestions = await cache.GetOrCreateAsync(
             $"suggestions:{id}",                            // cache key: one entry per user
             async token => (await db.Database.GetDbConnection().QueryAsync<SuggestionResponse>(

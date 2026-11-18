@@ -110,6 +110,12 @@ namespace SkillLink.Api.Data.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("headline");
 
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("password_hash");
+
                     b.HasKey("Id")
                         .HasName("pk_users");
 

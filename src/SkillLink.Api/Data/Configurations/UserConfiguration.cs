@@ -11,5 +11,6 @@ internal sealed class UserConfiguration : IEntityTypeConfiguration<User>
         u.HasIndex(x => x.Email).IsUnique();             // prevents the duplicate-email race condition
         u.Property(x => x.DisplayName).HasMaxLength(100);
         u.Property(x => x.Headline).HasMaxLength(200);
+        u.Property(x => x.PasswordHash).HasMaxLength(200);
     }
 }

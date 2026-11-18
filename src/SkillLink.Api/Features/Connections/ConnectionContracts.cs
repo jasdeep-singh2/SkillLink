@@ -1,6 +1,6 @@
 ﻿namespace SkillLink.Api.Features.Connections;
 
-public sealed record SendConnectionRequest(Guid RequesterId, Guid AddresseeId);
+public sealed record SendConnectionRequest(Guid AddresseeId);   // the requester is whoever is logged in
 
 public sealed record ConnectionResponse(Guid UserId, string DisplayName);
 
