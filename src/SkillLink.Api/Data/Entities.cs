@@ -6,6 +6,7 @@ public sealed class User
     public required string Email { get; set; }
     public required string DisplayName { get; set; }
     public string? Headline { get; set; }
+    public string PasswordHash { get; set; } = "";   // never the password itself; empty = can't log in
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
     public List<UserSkill> Skills { get; } = [];
 }
