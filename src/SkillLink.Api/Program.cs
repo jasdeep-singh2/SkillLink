@@ -17,6 +17,10 @@ builder.AddRedisDistributedCache("cache");   // L2: Redis (name matches the AppH
 builder.Services.AddHybridCache();           // L1 + L2, using Redis automatically
 builder.Services.AddOpenApi();
 
+// Every error response uses the same RFC 9457 "ProblemDetails" JSON shape, so clients parse errors one way.
+builder.Services.AddProblemDetails();
+builder.Services.AddValidation();   // runs the [Required], [EmailAddress]... attributes on request types
+
 // --- Authentication: who are you? (validate the JWT on every request) ---
 builder.Services.AddOptions<JwtOptions>()
     .BindConfiguration(JwtOptions.Section)
@@ -70,6 +74,9 @@ builder.Services.AddRateLimiter(options =>
     };
 });
 var app = builder.Build();
+
+app.UseExceptionHandler();   // unhandled exception -> 500 ProblemDetails (no stack trace leaked to clients)
+app.UseStatusCodePages();    // empty error responses (401, 404, 429...) -> ProblemDetails body
 
 // Order matters: the rate limiter needs to know the user, so authentication runs first.
 app.UseAuthentication();

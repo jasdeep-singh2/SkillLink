@@ -4,4 +4,7 @@
     <Project Path="src/SkillLink.AppHost/SkillLink.AppHost.csproj" />
     <Project Path="src/SkillLink.ServiceDefaults/SkillLink.ServiceDefaults.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SkillLink.Api.Tests/SkillLink.Api.Tests.csproj" />
+  </Folder>
 </Solution>

@@ -37,11 +37,11 @@ public static class ConnectionEndpoints
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Results.Conflict(new { error = "A connection between these users already exists." });
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "A connection between these users already exists.");
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
         {
-            return Results.NotFound(new { error = "One of these users doesn't exist." });
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "One of these users doesn't exist.");
         }
 
         return Results.Created($"/api/me/connections", null);
@@ -59,7 +59,7 @@ public static class ConnectionEndpoints
                 .SetProperty(c => c.RespondedAt, DateTimeOffset.UtcNow), ct);
 
         if (updated == 0)
-            return Results.NotFound(new { error = "No pending request found." });
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "No pending request found.");
 
         // The two people involved see the change immediately.
         // Their friends' suggestions also changed; the 1-minute TTL covers those.

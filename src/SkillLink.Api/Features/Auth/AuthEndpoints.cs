@@ -20,13 +20,6 @@ public static class AuthEndpoints
 
     private static async Task<IResult> Register(RegisterRequest req, AppDbContext db, IPasswordHasher<User> hasher, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(req.Email) || !req.Email.Contains('@'))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["email"] = ["A valid email is required."] });
-        if (string.IsNullOrWhiteSpace(req.DisplayName))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["displayName"] = ["Display name is required."] });
-        if (req.Password is not { Length: >= 8 })
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["password"] = ["Password must be at least 8 characters."] });
-
         var user = new User { Email = req.Email.Trim(), DisplayName = req.DisplayName.Trim(), Headline = req.Headline };
         // PBKDF2 with a random salt per user: slow on purpose, so a leaked table is expensive to crack.
         user.PasswordHash = hasher.HashPassword(user, req.Password);
@@ -38,7 +31,7 @@ public static class AuthEndpoints
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            return Results.Conflict(new { error = "A user with this email already exists." });
+            return Results.Problem(statusCode: StatusCodes.Status409Conflict, title: "A user with this email already exists.");
         }
 
         return Results.Created($"/api/users/{user.Id}", new UserResponse(user.Id, user.Email, user.DisplayName, user.Headline));
