@@ -18,12 +18,13 @@ public static class ConnectionEndpoints
         group.MapPost("/connections", SendRequest);
         group.MapPost("/connections/{requesterId:guid}/accept", AcceptRequest);
         group.MapGet("/me/connections", GetConnections);
+        group.MapGet("/me/connections/requests", GetIncomingRequests);
         group.MapGet("/me/suggestions", GetSuggestions).RequireRateLimiting("per-user");
 
         return app;
     }
 
-    private static async Task<IResult> SendRequest(SendConnectionRequest req, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> SendRequest(SendConnectionRequest req, ClaimsPrincipal principal, AppDbContext db, HybridCache cache, CancellationToken ct)
     {
         var me = principal.GetUserId();
         if (me == req.AddresseeId)
@@ -43,6 +44,10 @@ public static class ConnectionEndpoints
         {
             return Results.Problem(statusCode: StatusCodes.Status404NotFound, title: "One of these users doesn't exist.");
         }
+
+        // Suggestions exclude anyone you already have a request with. Without this, the person you just
+        // asked would stay in your (cached) suggestions for up to a minute, and "Connect" again gives 409.
+        await cache.RemoveByTagAsync([$"user:{me}", $"user:{req.AddresseeId}"], ct);
 
         return Results.Created($"/api/me/connections", null);
     }
@@ -82,6 +87,23 @@ public static class ConnectionEndpoints
             .ToListAsync(ct);
 
         return Results.Ok(friends);
+    }
+
+    // Pending requests other people sent to me: the list I accept from.
+    private static async Task<IResult> GetIncomingRequests(ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
+    {
+        var me = principal.GetUserId();
+
+        // Sort on the entity column, then project: EF can't translate sorting by a property of a new record.
+        var requests = await (
+            from c in db.Connections.AsNoTracking()
+            join u in db.Users on c.RequesterId equals u.Id
+            where c.AddresseeId == me && c.Status == ConnectionStatus.Pending
+            orderby c.CreatedAt descending
+            select new IncomingRequestResponse(u.Id, u.DisplayName, c.CreatedAt)
+        ).ToListAsync(ct);
+
+        return Results.Ok(requests);
     }
 
     private static readonly HybridCacheEntryOptions SuggestionsCacheOptions = new()

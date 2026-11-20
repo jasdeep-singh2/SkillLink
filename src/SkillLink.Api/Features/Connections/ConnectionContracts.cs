@@ -5,3 +5,5 @@ public sealed record SendConnectionRequest(Guid AddresseeId);   // the requester
 public sealed record ConnectionResponse(Guid UserId, string DisplayName);
 
 public sealed record SuggestionResponse(Guid Id, string DisplayName, int MutualCount);
+
+public sealed record IncomingRequestResponse(Guid UserId, string DisplayName, DateTimeOffset SentAt);

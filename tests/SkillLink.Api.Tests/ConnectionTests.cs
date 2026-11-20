@@ -93,6 +93,39 @@ public sealed class ConnectionTests(SkillLinkApiFactory factory)
     }
 
     [Fact]
+    public async Task Incoming_requests_lists_pending_requests_sent_to_me()
+    {
+        var alice = await TestUsers.CreateAsync(factory, "Alice");
+        var bob = await TestUsers.CreateAsync(factory, "Bob");
+        await Send(alice, bob.Id);
+
+        var bobsRequests = await IncomingRequests(bob);
+        var alicesRequests = await IncomingRequests(alice);
+
+        var request = Assert.Single(bobsRequests);
+        Assert.Equal(alice.Id, request.UserId);
+        Assert.Empty(alicesRequests);   // the sender doesn't see their own request as incoming
+
+        await bob.Client.PostAsync($"/api/connections/{alice.Id}/accept", null, Ct);
+        Assert.Empty(await IncomingRequests(bob));   // accepted requests are no longer pending
+    }
+
+    [Fact]
+    public async Task Sending_a_request_removes_that_person_from_cached_suggestions()
+    {
+        var alice = await TestUsers.CreateAsync(factory, "Alice");
+        var bob = await TestUsers.CreateAsync(factory, "Bob");
+        var carol = await TestUsers.CreateAsync(factory, "Carol");
+        await Connect(alice, bob);
+        await Connect(bob, carol);
+        Assert.Single(await Suggestions(alice));   // Carol, and now it's cached for a minute
+
+        await Send(alice, carol.Id);
+
+        Assert.Empty(await Suggestions(alice));    // the cache was invalidated, not served stale
+    }
+
+    [Fact]
     public async Task Suggestions_are_rate_limited_per_user()
     {
         var greedy = await TestUsers.CreateAsync(factory);
@@ -120,6 +153,12 @@ public sealed class ConnectionTests(SkillLinkApiFactory factory)
         (await Send(from, to.Id)).EnsureSuccessStatusCode();
         (await to.Client.PostAsync($"/api/connections/{from.Id}/accept", null, Ct)).EnsureSuccessStatusCode();
     }
+
+    private static async Task<List<IncomingRequestResponse>> IncomingRequests(TestUser user) =>
+        (await user.Client.GetFromJsonAsync<List<IncomingRequestResponse>>("/api/me/connections/requests", Ct))!;
+
+    private static async Task<List<SuggestionResponse>> Suggestions(TestUser user) =>
+        (await user.Client.GetFromJsonAsync<List<SuggestionResponse>>("/api/me/suggestions", Ct))!;
 
     private static async Task<List<ConnectionResponse>> Connections(TestUser user) =>
         (await user.Client.GetFromJsonAsync<List<ConnectionResponse>>("/api/me/connections", Ct))!;
