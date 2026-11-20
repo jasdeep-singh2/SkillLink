@@ -1,4 +1,5 @@
-﻿using System.Security.Claims;
+﻿using System.ComponentModel.DataAnnotations;
+using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using SkillLink.Api.Data;
 using SkillLink.Api.Features.Auth;
@@ -13,9 +14,27 @@ public static class UserEndpoints
         var group = app.MapGroup("/api/users").WithTags("Users").RequireAuthorization();
 
         group.MapGet("/me", GetMe);
+        group.MapGet("/search", Search);
         group.MapGet("/{id:guid}", GetUser);
 
         return app;
+    }
+
+    // Find people by name so new users (no friends, so no suggestions) can make a first connection.
+    // A leading-wildcard ILIKE can't use a normal index: fine at this size, needs pg_trgm at scale.
+    private static async Task<IResult> Search([MinLength(2), MaxLength(100)] string q, ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
+    {
+        var me = principal.GetUserId();
+        var pattern = "%" + q.Trim().Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_") + "%";
+
+        var users = await db.Users.AsNoTracking()
+            .Where(u => u.Id != me && EF.Functions.ILike(u.DisplayName, pattern))
+            .OrderBy(u => u.DisplayName)
+            .Take(20)
+            .Select(u => new UserSummary(u.Id, u.DisplayName, u.Headline))
+            .ToListAsync(ct);
+
+        return Results.Ok(users);
     }
 
     private static Task<IResult> GetMe(ClaimsPrincipal principal, AppDbContext db, CancellationToken ct) =>
